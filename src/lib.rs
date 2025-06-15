@@ -15,7 +15,7 @@ pub mod vehicle_shadow {
 
 pub use client::VehicleShadowClient;
 pub use error::{ClientError, Result};
-pub use formatter::format_value;
+pub use formatter::{format_value, format_signal};
 pub use parser::{parse_state_from_json, parse_value_from_json};
 
 // Re-export commonly used types
