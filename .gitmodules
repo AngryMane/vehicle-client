@@ -1,0 +1,3 @@
+[submodule "external/vehicle-protocol"]
+	path = external/vehicle-protocol
+	url = git@github.com:AngryMane/vehicle-protocol.git

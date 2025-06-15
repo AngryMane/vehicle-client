@@ -1,0 +1,24 @@
+[package]
+name = "vehicle-shadow-client"
+version = "0.1.0"
+edition = "2021"
+description = "Client library for Vehicle Signal Shadow service"
+license = "MIT"
+repository = "https://github.com/your-org/vehicle-signal-shadow"
+keywords = ["vehicle", "signal", "grpc", "client"]
+categories = ["network-programming", "api-bindings"]
+
+[dependencies]
+tonic = "0.10"
+prost = "0.12"
+serde_json = "1.0"
+anyhow = "1.0"
+log = "0.4"
+tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
+futures = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+http = "0.2"
+
+[build-dependencies]
+tonic-build = "0.10" 
