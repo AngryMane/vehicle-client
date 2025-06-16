@@ -58,6 +58,7 @@ pub fn format_signal(signal: &crate::vehicle_shadow::Signal) -> String {
         if let Some(description) = &config.description {
             output.push_str(&format!("  Description: {}\n", description));
         }
+        output.push_str(&format!("  End Point: {}\n", config.end_point));
     }
 
     output
@@ -109,5 +110,42 @@ mod tests {
     fn test_format_nan_value() {
         let value = Value { value: None };
         assert_eq!(format_value(&value), "NAN");
+    }
+
+    #[test]
+    fn test_format_signal_with_end_point() {
+        use crate::vehicle_shadow::{Config, LeafType, Signal, State, Value, ValueType};
+        
+        let signal = Signal {
+            path: "Vehicle.Speed".to_string(),
+            state: Some(State {
+                value: Some(Value {
+                    value: Some(crate::vehicle_shadow::value::Value::DoubleValue(60.5)),
+                }),
+                capability: Some(true),
+                availability: Some(true),
+                reserved: None,
+            }),
+            config: Some(Config {
+                leaf_type: LeafType::Sensor as i32,
+                data_type: ValueType::TypeDouble as i32,
+                deprecation: None,
+                unit: Some("km/h".to_string()),
+                min: None,
+                max: None,
+                description: Some("Vehicle speed".to_string()),
+                comment: None,
+                allowd: vec![],
+                default: None,
+                end_point: "vehicle.speed".to_string(),
+            }),
+        };
+
+        let formatted = format_signal(&signal);
+        assert!(formatted.contains("End Point: vehicle.speed"));
+        assert!(formatted.contains("Path: Vehicle.Speed"));
+        assert!(formatted.contains("Value: 60.5"));
+        assert!(formatted.contains("Unit: km/h"));
+        assert!(formatted.contains("Description: Vehicle speed"));
     }
 }
