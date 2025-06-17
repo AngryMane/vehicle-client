@@ -59,7 +59,7 @@ impl VehicleShadowClient {
         info!("Setting {} signals", signals.len());
 
         // TODO: enable invoking multiple set
-        let mut ret = SetResponse { results: todo!(), success: true, error_message: String::from("")  };
+        let mut ret: SetResponse = SetResponse { results: [].to_vec(), success: true, error_message: String::from("")  };
         for (path, state)in signals {
             let client = self.get_target_client(path.clone());
             if client.is_none(){
@@ -73,7 +73,7 @@ impl VehicleShadowClient {
             });
             let request = tonic::Request::new(SetRequest { signals: set_requests  });
 
-            let response = client.unwrap().set(request).await?.get_mut();
+            let mut response = client.unwrap().set(request).await?.into_inner();
             ret.results.append(&mut response.results);
         }
 
