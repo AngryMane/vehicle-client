@@ -1,7 +1,8 @@
 use log::info;
 use tonic::transport::Channel;
+use std::collections::HashMap;
 
-use crate::error::Result;
+use crate::error::{Result, ClientError};
 use crate::vehicle_shadow::signal_service_client::SignalServiceClient;
 use crate::vehicle_shadow::{
     GetRequest, GetResponse, SetRequest, SetResponse, SetSignalRequest, SubscribeRequest, State,
@@ -10,12 +11,16 @@ use crate::vehicle_shadow::{
 
 /// High-level client for the Vehicle Signal Shadow service
 pub struct VehicleShadowClient {
-    client: SignalServiceClient<Channel>,
+    clients: Vec<(String, SignalServiceClient<Channel>)>,
+    //client: SignalServiceClient<Channel>,
 }
 
 impl VehicleShadowClient {
-    /// Create a new client connected to the specified server
-    pub async fn connect(server_url: &str) -> Result<Self> {
+
+    pub async fn create() -> Result<Self> {
+        Ok( VehicleShadowClient { clients: [].to_vec() } )
+    }
+    pub async fn connect(&mut self, server_url: &str, path: String) -> Result<()> {
         info!("Connecting to Vehicle Signal Shadow server: {}", server_url);
 
         let channel = Channel::from_shared(server_url.to_string())?
@@ -23,67 +28,86 @@ impl VehicleShadowClient {
             .await?;
 
         let client = SignalServiceClient::new(channel);
+        self.clients.push((path, client));
 
-        Ok(VehicleShadowClient { client })
+        Ok(())
     }
 
     /// Get signals by their paths
     pub async fn get_signals(&mut self, paths: Vec<String>) -> Result<GetResponse> {
         info!("Getting signals: {:?}", paths);
 
-        let request = tonic::Request::new(GetRequest { paths });
-        let response = self.client.get(request).await?;
+        // TODO: enable invoking multiple set
+        let mut ret = GetResponse { signals: [].to_vec(), success: true, error_message: String::from("") };
+        for path in paths {
+            let client = self.get_target_client(path.clone());
+            if client.is_none(){
+                continue;
+            }
+            let client = client.unwrap();
+            let request = tonic::Request::new(GetRequest { paths: [ path.clone() ].to_vec() });
 
-        Ok(response.into_inner())
+            let response = client.get(request).await?.into_inner();
+            ret.signals.append(&mut response.signals.clone());
+        }
+
+        Ok(ret)
     }
 
     /// Set multiple signal values
     pub async fn set_signals(&mut self, signals: Vec<(String, State)>) -> Result<SetResponse> {
         info!("Setting {} signals", signals.len());
 
-        let mut set_requests = Vec::new();
+        // TODO: enable invoking multiple set
+        let mut ret = SetResponse { results: todo!(), success: true, error_message: String::from("")  };
+        for (path, state)in signals {
+            let client = self.get_target_client(path.clone());
+            if client.is_none(){
+                continue;
+            }
 
-        for (path, state) in signals {
+            let mut set_requests = Vec::new();
             set_requests.push(SetSignalRequest {
                 path,
                 state: Some(state),
             });
+            let request = tonic::Request::new(SetRequest { signals: set_requests  });
+
+            let response = client.unwrap().set(request).await?.get_mut();
+            ret.results.append(&mut response.results);
         }
 
-        let request = tonic::Request::new(SetRequest {
-            signals: set_requests,
-        });
-
-        let response = self.client.set(request).await?;
-
-        Ok(response.into_inner())
+        Ok(ret)
     }
 
     /// Subscribe to signal changes
     pub async fn subscribe(
         &mut self,
-        paths: Vec<String>,
+        path: String,
     ) -> Result<tonic::codec::Streaming<SubscribeResponse>> {
-        info!("Subscribing to signals: {:?}", paths);
+        info!("Subscribing to signal: {:?}", path);
 
-        let request = tonic::Request::new(SubscribeRequest { paths });
-        let response = self.client.subscribe(request).await?;
+        let client = self.get_target_client(path.clone());
+        if client.is_none(){
+            return Err(ClientError::NotFound(format!("client for {} not found", path)));
+        }
+        let client = client.unwrap();
 
-        Ok(response.into_inner())
+        let request = tonic::Request::new(SubscribeRequest  { paths: [ path ].to_vec() });
+        let response = client.subscribe(request).await?.into_inner();
+
+        Ok(response)
     }
 
     /// Unsubscribe from signal changes
-    pub async fn unsubscribe(&mut self, paths: Vec<String>) -> Result<UnsubscribeResponse> {
-        info!("Unsubscribing from signals: {:?}", paths);
-
-        let request = tonic::Request::new(UnsubscribeRequest { paths });
-        let response = self.client.unsubscribe(request).await?;
-
-        Ok(response.into_inner())
+    pub async fn unsubscribe(&mut self, _: Vec<String>) -> Result<UnsubscribeResponse> {
+        Err(ClientError::NotFound("Not Implemented yet".to_string()))
     }
 
-    /// Get the underlying gRPC client for advanced usage
-    pub fn get_client(&mut self) -> &mut SignalServiceClient<Channel> {
-        &mut self.client
+    fn get_target_client<'a>(&'a mut self, path: String) -> Option<&'a mut SignalServiceClient<Channel>> {
+        // TODO: fix unwrap
+        let (_, result) = self.clients.iter_mut().find(|(prefix, client)| { path.starts_with(prefix) }).unwrap();
+        Some(result)
     }
+
 }
