@@ -2,10 +2,9 @@ use log::info;
 use tonic::transport::Channel;
 
 use crate::error::Result;
-use crate::parser::parse_state_from_json;
 use crate::vehicle_shadow::signal_service_client::SignalServiceClient;
 use crate::vehicle_shadow::{
-    GetRequest, GetResponse, SetRequest, SetResponse, SetSignalRequest, SubscribeRequest,
+    GetRequest, GetResponse, SetRequest, SetResponse, SetSignalRequest, SubscribeRequest, State,
     SubscribeResponse, UnsubscribeRequest, UnsubscribeResponse,
 };
 
@@ -38,34 +37,13 @@ impl VehicleShadowClient {
         Ok(response.into_inner())
     }
 
-    /// Set a single signal value
-    pub async fn set_signal(&mut self, path: String, value_json: &str) -> Result<SetResponse> {
-        info!("Setting signal {} to value: {}", path, value_json);
-
-        let state = parse_state_from_json(value_json)?;
-
-        let set_request = SetSignalRequest {
-            path: path.clone(),
-            state: Some(state),
-        };
-
-        let request = tonic::Request::new(SetRequest {
-            signals: vec![set_request],
-        });
-
-        let response = self.client.set(request).await?;
-
-        Ok(response.into_inner())
-    }
-
     /// Set multiple signal values
-    pub async fn set_signals(&mut self, signals: Vec<(String, String)>) -> Result<SetResponse> {
+    pub async fn set_signals(&mut self, signals: Vec<(String, State)>) -> Result<SetResponse> {
         info!("Setting {} signals", signals.len());
 
         let mut set_requests = Vec::new();
 
-        for (path, value_json) in signals {
-            let state = parse_state_from_json(&value_json)?;
+        for (path, state) in signals {
             set_requests.push(SetSignalRequest {
                 path,
                 state: Some(state),
