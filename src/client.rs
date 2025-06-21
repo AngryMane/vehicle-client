@@ -6,7 +6,7 @@ use crate::error::{Result, ClientError};
 use crate::vehicle_shadow::signal_service_client::SignalServiceClient;
 use crate::vehicle_shadow::{
     GetRequest, GetResponse, SetRequest, SetResponse, SetSignalRequest, SubscribeRequest, State,
-    SubscribeResponse, UnsubscribeRequest, UnsubscribeResponse,
+    SubscribeResponse, UnsubscribeRequest, UnsubscribeResponse, LockRequest, LockResponse, UnlockRequest, UnlockResponse,
 };
 
 /// High-level client for the Vehicle Signal Shadow service
@@ -55,7 +55,7 @@ impl VehicleShadowClient {
     }
 
     /// Set multiple signal values
-    pub async fn set_signals(&mut self, signals: Vec<(String, State)>) -> Result<SetResponse> {
+    pub async fn set_signals(&mut self, signals: Vec<(String, State)>, token: String) -> Result<SetResponse> {
         info!("Setting {} signals", signals.len());
 
         // TODO: enable invoking multiple set
@@ -71,7 +71,7 @@ impl VehicleShadowClient {
                 path,
                 state: Some(state),
             });
-            let request = tonic::Request::new(SetRequest { signals: set_requests  });
+            let request = tonic::Request::new(SetRequest { signals: set_requests, token: token.clone() });
 
             let mut response = client.unwrap().set(request).await?.into_inner();
             ret.results.append(&mut response.results);
@@ -102,6 +102,42 @@ impl VehicleShadowClient {
     /// Unsubscribe from signal changes
     pub async fn unsubscribe(&mut self, _: Vec<String>) -> Result<UnsubscribeResponse> {
         Err(ClientError::NotFound("Not Implemented yet".to_string()))
+    }
+
+    /// Lock signals
+    pub async fn lock(&mut self, paths: Vec<String>) -> Result<LockResponse> {
+        info!("Locking signals: {:?}", paths);
+
+        // 最初のパスに対応するクライアントを見つける
+        if let Some(path) = paths.first() {
+            let client = self.get_target_client(path.clone());
+            if client.is_none() {
+                return Err(ClientError::NotFound(format!("client for {} not found", path)));
+            }
+            let client = client.unwrap();
+
+            let request = tonic::Request::new(LockRequest { paths });
+            let response = client.lock(request).await?.into_inner();
+
+            Ok(response)
+        } else {
+            Err(ClientError::InvalidInput("No paths provided for lock".to_string()))
+        }
+    }
+
+    /// Unlock signals
+    pub async fn unlock(&mut self, token: String) -> Result<UnlockResponse> {
+        info!("Unlocking signals with token: {}", token);
+
+        // 任意のクライアントを使用してunlockを実行
+        let mut ret = true;
+        for (_, mut client) in self.clients.clone().into_iter() {
+            let request = tonic::Request::new(UnlockRequest { token: token.clone() });
+            let response = client.unlock(request).await?.into_inner();
+            ret &= response.success;
+        }
+
+        Ok(UnlockResponse { success: ret })
     }
 
     fn get_target_client<'a>(&'a mut self, path: String) -> Option<&'a mut SignalServiceClient<Channel>> {

@@ -22,5 +22,5 @@ pub use parser::{parse_state_from_json, parse_value_from_json};
 pub use vehicle_shadow::{
     Config, GetRequest, GetResponse, LeafType, SetRequest, SetResponse, SetResult,
     SetSignalRequest, Signal, State, SubscribeRequest, SubscribeResponse, UnsubscribeRequest,
-    UnsubscribeResponse, Value, ValueType,
+    UnsubscribeResponse, Value, ValueType, LockRequest, LockResponse, UnlockRequest, UnlockResponse,
 };
